@@ -31,6 +31,7 @@ LifeWidget::LifeWidget(int cellSize, long timeGap, QWidget *parent)
     left = top = 0;
 
     setMouseTracking(true);
+    setFocusPolicy(Qt::WheelFocus);
     setFocus();
     adjustCursor();
 }
@@ -68,17 +69,19 @@ void LifeWidget::keyPressEvent(QKeyEvent *event) {
         keyPressed = event->key();
         repaintCurrentCell();
         adjustCursor();
-    }
+        event->accept();
+    } else event->ignore();
 }
 
 void LifeWidget::keyReleaseEvent(QKeyEvent *event) {
     if(!event->isAutoRepeat() && keyPressed == event->key()) {
-        //        qDebug("Key released: %u", event->key());
+//        qDebug("Key released: %u", event->key());
         repaintCurrentCell();
         keyPressed = 0;
         if(mode == M_NONE)
             adjustCursor();
-    }
+        event->accept();
+    } else event->ignore();
 }
 
 void LifeWidget::paintEvent(QPaintEvent *) {
@@ -159,9 +162,12 @@ void LifeWidget::mouseReleaseEvent(QMouseEvent* event) {
     mode = M_NONE;
     adjustCursor();
     event->accept();
+    releaseMouse();
 }
 
 void LifeWidget::mouseMoveEvent(QMouseEvent* event) {
+    event->accept();
+
     if(mouseCurrent.x() == event->x()
             && mouseCurrent.y() == event->y()
     ) return;
@@ -202,16 +208,22 @@ void LifeWidget::mouseMoveEvent(QMouseEvent* event) {
     emit activeCellChanged(cellCurrent.x(), cellCurrent.y());
 }
 
-void LifeWidget::enterEvent(QEvent*) {
+void LifeWidget::enterEvent(QEvent* event) {
+//    qDebug() << "Mouse enter";
     mouseOut = false;
+    event->accept();
+//    adjustCursor();
 }
 
-void LifeWidget::leaveEvent(QEvent*) {
+void LifeWidget::leaveEvent(QEvent* event) {
+//    qDebug() << "Mouse leave";
     mouseOut = true;
-    update(getCellX(cellCurrent.x()), getCellY(cellCurrent.y()), cellSize, cellSize);
+    repaintCurrentCell();
+//    adjustCursor();
     if(mode != M_DRAG) {
         emit lifeLeaved();
     }
+    event->accept();
 }
 
 void LifeWidget::wheelEvent(QWheelEvent *event) {
@@ -230,6 +242,7 @@ void LifeWidget::wheelEvent(QWheelEvent *event) {
     cellSize = newSize;
     update();
     emit lifeScaled(left, top, cellSize);
+    event->accept();
 }
 
 void LifeWidget::step() {
@@ -270,12 +283,40 @@ void LifeWidget::clear() {
     update();
 }
 
+void LifeWidget::delayTimerChange(int value) {
+    timegap = value;
+    if(timer != NULL)
+        timer->setInterval(value);
+}
+
 QColor LifeWidget::colorFusion(const QColor& bg, const QColor& overlay) {
     return QColor(
         (int)round((overlay.alphaF() * overlay.redF() + bg.redF() * (1.0f - overlay.alphaF())) * 255.0),
         (int)round((overlay.alphaF() * overlay.greenF() + bg.greenF() * (1.0f - overlay.alphaF())) * 255.0),
         (int)round((overlay.alphaF() * overlay.blueF() + bg.blueF() * (1.0f - overlay.alphaF())) * 255.0)
     );
+}
+
+void LifeWidget::openGif(QString fname) {
+    life->clear();
+
+    int shiftX = 0, shiftY = 1;
+    int scaleX = 2, scaleY = 2;
+
+    QMovie *movie = new QMovie(fname);
+    movie->jumpToFrame(0);
+    QRgb bc = movie->backgroundColor().rgb();
+
+    const QImage img = movie->currentImage();
+    for(int y = 0; y < img.height(); y++) {
+        for(int x = 0; x < img.width(); x++) {
+            QRgb rgb = img.pixel(x, y);
+            if(rgb != bc)
+                life->burn((x - shiftX) / scaleX, (y - shiftY) / scaleY);
+        }
+    }
+
+    delete movie;
 }
 
 int LifeWidget::getCellX(int col) {

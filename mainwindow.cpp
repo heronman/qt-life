@@ -1,6 +1,6 @@
 #include <QtGui>
 #include <QGridLayout>
-#include <QtWidgets/QMessageBox>
+#include <QMessageBox>
 #include "mainwindow.h"
 //#include "flowlayout.h"
 
@@ -21,16 +21,12 @@ int MainWindow::timeGap;
 MainWindow::MainWindow() {
     readSettings();
 
-    installEventFilter(this);
-
     QWidget *contentPane = new QWidget;
     QGridLayout* gl = new QGridLayout;
     contentPane->setLayout(gl);
     setCentralWidget(contentPane);
 
     lifeWidget = new LifeWidget(cellSize, timeGap, this);
-    lifeWidget->setFocusPolicy(Qt::StrongFocus);
-    lifeWidget->setMouseTracking(true);
 
     //setCentralWidget(lifeWidget);
 
@@ -291,7 +287,14 @@ void MainWindow::createToolBars() {
     toolBar->addAction(stopAct);
     toolBar->addAction(stepAct);
 
-//    fileToolBar->setStyleSheet("QToolBar { border-bottom: 1px solid darkgrey; }");
+    QSpinBox * delayTimeSpinner = new QSpinBox(this);
+    delayTimeSpinner->setMinimum(0);
+    delayTimeSpinner->setMaximum(5000);
+    delayTimeSpinner->setValue(timeGap);
+    QAction *act = toolBar->addWidget(delayTimeSpinner);
+    connect(delayTimeSpinner, SIGNAL(valueChanged()), lifeWidget, SLOT(delayTimerChange()));
+
+    //    fileToolBar->setStyleSheet("QToolBar { border-bottom: 1px solid darkgrey; }");
 //    editToolBar->setStyleSheet("QToolBar { border-bottom: 1px solid darkgrey; }");
 }
 
@@ -300,6 +303,8 @@ void MainWindow::newFile() {
 }
 
 void MainWindow::open() {
+    QString fname = QFileDialog::getOpenFileName(this, tr("Open file"), "~/", tr("GIF files (*.gif)"));
+    lifeWidget->openGif(fname);
 }
 
 bool MainWindow::save() {

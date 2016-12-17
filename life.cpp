@@ -1,6 +1,5 @@
 #include "life.h"
 #include <QDateTime>
-#include <QDebug>
 
 // internal utils
 

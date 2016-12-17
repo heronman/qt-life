@@ -1,7 +1,7 @@
 #ifndef RULER_H
 #define RULER_H
 
-#include <QtWidgets/QWidget>
+#include <QWidget>
 #include <QtGui>
 
 class Ruler : public QWidget {

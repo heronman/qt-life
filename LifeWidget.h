@@ -41,7 +41,7 @@
 #ifndef ANALOGCLOCK_H
 #define ANALOGCLOCK_H
 
-#include <QtWidgets/QWidget>
+#include <QWidget>
 #include <QtGui>
 #include "LifeBase.h"
 
@@ -54,6 +54,7 @@ public slots:
     void start();
     void stop();
     void clear();
+    void delayTimerChange(int value);
 
 signals:
 //    void nextGeneration(int geneation, int population);
@@ -84,6 +85,7 @@ public:
     inline Mode getMode() { return mode; }
     inline void setMode(Mode m) { mode = m; }
 
+    void openGif(QString fname);
     int getCellX(int col);
     int getCellY(int row);
     int getCol(int x);
