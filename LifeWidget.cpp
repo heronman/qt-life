@@ -9,12 +9,11 @@ LifeWidget::LifeWidget(int cellSize, long timeGap, QWidget *parent)
 
 {    
     mouseOut = true;
-//    drag = burn = kill = false;
     mode = M_NONE;
+    readOnly = false;
 
     timer = NULL;
     generation = 0l;
-//    life = new MLife();
     life = new Life();
     grid = cellSize < 2;
 
@@ -40,19 +39,15 @@ void LifeWidget::adjustCursor() {
     QCursor cursor = MainWindow::curBurn;
     switch(mode) {
         case M_NONE:
-        if(keyPressed == Qt::Key_Space)
+        if(readOnly || keyPressed == Qt::Key_Space)
             cursor = MainWindow::curMoveReady;
         else if(keyPressed == Qt::Key_Control)
             cursor = MainWindow::curSelect;
         break;
 
-        case M_DRAG: // case M_MOVE_SELECTED:
+        case M_DRAG:
         cursor = MainWindow::curMove;
         break;
-
-//        case M_COPY_SELECTED:
-//        cursor = MainWindow::curCopy;
-//        break;
 
         case M_KILL:
         cursor = MainWindow::curKill;
@@ -65,7 +60,6 @@ void LifeWidget::adjustCursor() {
 
 void LifeWidget::keyPressEvent(QKeyEvent *event) {
     if(!event->isAutoRepeat() && keyPressed == 0 && mode == M_NONE) {
-//        qDebug("Key pressed: %u", event->key());
         keyPressed = event->key();
         repaintCurrentCell();
         adjustCursor();
@@ -75,7 +69,6 @@ void LifeWidget::keyPressEvent(QKeyEvent *event) {
 
 void LifeWidget::keyReleaseEvent(QKeyEvent *event) {
     if(!event->isAutoRepeat() && keyPressed == event->key()) {
-//        qDebug("Key released: %u", event->key());
         repaintCurrentCell();
         keyPressed = 0;
         if(mode == M_NONE)
@@ -85,17 +78,14 @@ void LifeWidget::keyReleaseEvent(QKeyEvent *event) {
 }
 
 void LifeWidget::paintEvent(QPaintEvent *) {
-//    qint64 tstart = QDateTime::currentMSecsSinceEpoch();
     QPainter painter(this);
 
     QRegion clipRegion = painter.clipRegion();
     QRect bounds(0, 0, width(), height());
     if(clipRegion.isEmpty()) {
         painter.setClipRegion(QRegion(bounds));
-//        qDebug() << "Clip region is empty. Drawing a whole region\n";
     } else {
         bounds = clipRegion.boundingRect();
-//        qDebug() << "Clip region: " << bounds.left() << ", " << bounds.top() << "; " << bounds.width() << "x" << bounds.height() << "\n";
     }
 
     painter.fillRect(bounds, MainWindow::colorDead);
@@ -117,13 +107,14 @@ void LifeWidget::paintEvent(QPaintEvent *) {
     for(int col = leftCol; col <= rightCol;col++) {
         drawCell(&painter, QPoint(col, 0));
     }
-//    qint64 tend = QDateTime::currentMSecsSinceEpoch();
-//    qDebug("Paint time: %llu msec", tend-tstart);
 }
 
 void LifeWidget::mousePressEvent(QMouseEvent* event) {
     if(event->buttons() == Qt::LeftButton) {
-        switch(keyPressed) {
+        if(readOnly) {
+            mode = M_DRAG;
+            grabMouse();
+        } else switch(keyPressed) {
             case Qt::Key_Shift: break;
 
             case Qt::Key_Alt: case Qt::Key_AltGr:
@@ -146,9 +137,8 @@ void LifeWidget::mousePressEvent(QMouseEvent* event) {
                 life->burn(cellCurrent.x(), cellCurrent.y());
                 repaintCurrentCell();
                 emit lifeChanged(life->population(), generation);
-
         }
-    } else if(event->buttons() == Qt::RightButton) {
+    } else if(event->buttons() == Qt::RightButton && !readOnly) {
         mode = M_KILL;
         life->kill(cellCurrent.x(), cellCurrent.y());
         repaintCurrentCell();
@@ -209,17 +199,13 @@ void LifeWidget::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void LifeWidget::enterEvent(QEvent* event) {
-//    qDebug() << "Mouse enter";
     mouseOut = false;
     event->accept();
-//    adjustCursor();
 }
 
 void LifeWidget::leaveEvent(QEvent* event) {
-//    qDebug() << "Mouse leave";
     mouseOut = true;
     repaintCurrentCell();
-//    adjustCursor();
     if(mode != M_DRAG) {
         emit lifeLeaved();
     }
@@ -234,7 +220,6 @@ void LifeWidget::wheelEvent(QWheelEvent *event) {
         if(newSize < 30) newSize++;
     }
     if(newSize == cellSize) return;
-//    (double)(event->x() + left) / (double)cellSize
 
     double q = (double)newSize / (double)cellSize;
     left = round(((double)event->x() + (double)left) * q - (double)event->x());
@@ -289,12 +274,26 @@ void LifeWidget::delayTimerChange(int value) {
         timer->setInterval(value);
 }
 
+void LifeWidget::resetCounter(bool) {
+    generation = 0;
+    emit lifeChanged(life->population(), generation);
+}
+
 QColor LifeWidget::colorFusion(const QColor& bg, const QColor& overlay) {
     return QColor(
         (int)round((overlay.alphaF() * overlay.redF() + bg.redF() * (1.0f - overlay.alphaF())) * 255.0),
         (int)round((overlay.alphaF() * overlay.greenF() + bg.greenF() * (1.0f - overlay.alphaF())) * 255.0),
         (int)round((overlay.alphaF() * overlay.blueF() + bg.blueF() * (1.0f - overlay.alphaF())) * 255.0)
     );
+}
+
+void LifeWidget::setReadOnly(bool readOnly) {
+    if(this->readOnly != readOnly) {
+        this->readOnly = readOnly;
+        mode = M_NONE;
+        adjustCursor();
+        emit readOnlySwitched(this->readOnly);
+    }
 }
 
 void LifeWidget::openGif(QString fname) {
@@ -349,15 +348,11 @@ void LifeWidget::drawGrid(QPainter* painter) {
 
     for(int row = topRow; row <= bottomRow;row++) {
         int y = getCellY(row + 1) - 1;
-//        if(row == -1) painter->setPen(MainWindow::colorGrid.lighter(200));
         painter->drawLine(clipRect.left(), y, clipRect.right(), y);
-//        if(row == -1) painter->setPen(MainWindow::colorGrid.darker(200));
     }
     for(int col = leftCol; col <= rightCol;col++) {
         int x = getCellX(col + 1) - 1;
-//        if(col == -1) painter->setPen(MainWindow::colorGrid.lighter(200));
         painter->drawLine(x, clipRect.top(), x, clipRect.bottom());
-//        if(col == -1) painter->setPen(MainWindow::colorGrid.darker(200));
     }
 
     painter->restore();
@@ -409,7 +404,6 @@ class DrawCellConsumer : public LifeCellConsumer {
 private:
     LifeWidget *widget;
     QPainter *painter;
-//    long left, top, right, bottom;
 public:
     DrawCellConsumer(LifeWidget *w, QPainter *p);
     void run(long x, long y, bool alive);

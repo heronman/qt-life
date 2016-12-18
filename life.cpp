@@ -44,6 +44,7 @@ Life::Life() : Life(LIFE_FORMULA_BURN, LIFE_FORMULA_SURVIVE_MIN, LIFE_FORMULA_SU
 Life::Life(int burn, int surviveMin, int surviveMax) {
     setFormula(burn, surviveMin, surviveMax, false);
     cells = new QHash<int, QSet<int> *>();
+    populationCached = -1L;
 }
 
 std::vector<int> Life::getFormula() {
@@ -76,18 +77,21 @@ bool Life::test(long col, long row) {
 
 void Life::burn(long col, long row) {
     lock.lockForWrite();
+    populationCached = -1L;
     ::burn(cells, col, row);
     lock.unlock();
 }
 
 void Life::kill(long col, long row) {
     lock.lockForWrite();
+    populationCached = -1L;
     ::kill(cells, col, row);
     lock.unlock();
 }
 
 void Life::clear(void) {
     lock.lockForWrite();
+    populationCached = -1L;
     clearHash(cells);
     lock.unlock();
 }
@@ -147,18 +151,22 @@ void Life::step(void) {
     clearHash(cells);
     delete cells;
     cells = newMap;
+    populationCached = -1L;
 
     lock.unlock();
 }
 
 unsigned long Life::population(void) {
     lock.lockForRead();
-    unsigned long size = 0L;
-    for(QHash<int, QSet<int>*>::iterator it = cells->begin(); it != cells->end(); it++) {
-        size += it.value()->size();
+    if(populationCached < 0L) {
+        populationCached = 0L;
+        for(QHash<int, QSet<int>*>::iterator it = cells->begin(); it != cells->end(); it++) {
+            populationCached += it.value()->size();
+        }
     }
     lock.unlock();
-    return size;
+
+    return populationCached;
 }
 
 void Life::rdlock() {

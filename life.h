@@ -17,6 +17,7 @@ class Life : public LifeBase {
 private:
     QHash<int, QSet<int> *> *cells;
     QReadWriteLock lock;
+    long populationCached;
 
     void setFormula(int burn, int surviveMin, int surviveMax, bool lock);
 

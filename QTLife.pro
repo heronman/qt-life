@@ -14,24 +14,14 @@ TEMPLATE = app
 HEADERS  = mainwindow.h \
     LifeWidget.h \
     life.h \
-    borderlayout.h \
-    flowlayout.h \
     ruler.h \
-    LifeBase.h \
-    mlife.h \
-    bmatrix.h \
-    lifecached.h
+    LifeBase.h
 
 SOURCES = main.cpp\
         mainwindow.cpp \
     LifeWidget.cpp \
     life.cpp \
-    borderlayout.cpp \
-    flowlayout.cpp \
-    ruler.cpp \
-    mlife.cpp \
-    bmatrix.cpp \
-    lifecached.cpp
+    ruler.cpp
 
 RESOURCES = \
     QTLife.qrc

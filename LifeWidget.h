@@ -55,11 +55,9 @@ public slots:
     void stop();
     void clear();
     void delayTimerChange(int value);
+    void resetCounter(bool);
 
 signals:
-//    void nextGeneration(int geneation, int population);
-//    void populationChanged(int population);
-//    void currentCellChanged(QPoint cell);
     void copyAvailable(bool av);
     void activeCellChanged(int col, int row);
     void lifeLeaved();
@@ -68,9 +66,10 @@ signals:
     void lifeStarted();
     void lifeStopped();
     void lifeChanged(int population, int generation);
+    void readOnlySwitched(bool);
 
 public:
-    enum Mode { M_NONE, M_DRAG, M_BURN, M_KILL, M_INVERSE, M_MOVE };
+    enum Mode { M_NONE, M_DRAG, M_BURN, M_KILL, M_INVERSE };
     LifeWidget(int cellSize, long timegap, QWidget *parent = 0);
     static QColor colorFusion(const QColor& bg, const QColor& overlay);
 
@@ -81,9 +80,8 @@ public:
     inline int getGeneration() { return generation; }
     inline const QPoint& getCurrentCell() { return cellCurrent; }
     inline int getCellSize() { return cellSize; }
-    inline bool hasMouse() { return mouseOut; }
-    inline Mode getMode() { return mode; }
-    inline void setMode(Mode m) { mode = m; }
+    void setReadOnly(bool readOnly);
+    inline bool isReadOnly() { return readOnly; }
 
     void openGif(QString fname);
     int getCellX(int col);
@@ -113,10 +111,10 @@ protected:
 
 private:
     Mode mode;
-    QPoint mouseCurrent;//, mouseOld;
-    QPoint cellCurrent;//, cellOld;
-    bool mouseOut;//, mouseOldOut;
-//    bool drag, burn, kill;
+    bool readOnly;
+    QPoint mouseCurrent;
+    QPoint cellCurrent;
+    bool mouseOut;
 
     QTimer* timer;
     LifeBase *life;

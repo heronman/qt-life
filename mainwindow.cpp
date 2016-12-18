@@ -1,8 +1,10 @@
 #include <QtGui>
 #include <QGridLayout>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QFileDialog>
 #include "mainwindow.h"
-//#include "flowlayout.h"
 
 QColor MainWindow::colorGrid, MainWindow::colorLive, MainWindow::colorDead;
 QColor MainWindow::colorTrace, MainWindow::colorTraceKill, MainWindow::colorSelected;
@@ -18,6 +20,31 @@ int MainWindow::gridMinSize;
 int MainWindow::cellSize;
 int MainWindow::timeGap;
 
+QString getLastPath() {
+    QSettings settings("AG-L", "Life");
+    return settings.value("lastOpenPath", QStandardPaths::locate(QStandardPaths::HomeLocation, NULL, QStandardPaths::LocateDirectory)).toString();
+
+}
+
+void setLastPath(QString path) {
+    QSettings settings("AG-L", "Life");
+    QFileInfo fi(path);
+
+    if(fi.exists()) {
+        if(!fi.isDir()) {
+            path = fi.absolutePath();
+            fi.setFile(path);
+            if(!fi.exists() || !fi.isDir())
+                return;
+        } else {
+            path = fi.absoluteFilePath();
+        }
+
+        settings.setValue("lastOpenPath", path);
+    }
+
+}
+
 MainWindow::MainWindow() {
     readSettings();
 
@@ -27,8 +54,6 @@ MainWindow::MainWindow() {
     setCentralWidget(contentPane);
 
     lifeWidget = new LifeWidget(cellSize, timeGap, this);
-
-    //setCentralWidget(lifeWidget);
 
     leftRuler = new Ruler(Qt::Vertical, cellSize);
     topRuler = new Ruler(Qt::Horizontal, cellSize);
@@ -59,6 +84,8 @@ MainWindow::MainWindow() {
             this, SLOT(lifeStopped()));
     connect(lifeWidget, SIGNAL(lifeChanged(int,int)),
             this, SLOT(lifeChanged(int,int)));
+    connect(lifeWidget, SIGNAL(readOnlySwitched(bool)),
+            this, SLOT(readOnlySwitched(bool)));
 }
 
 void MainWindow::lifeChanged(int population, int generation) {
@@ -73,7 +100,6 @@ void MainWindow::activeCellChanged(int col, int row) {
 
 void MainWindow::lifeMoved(int left, int top) {
     QString s;
-    //labelPos->setText(s.sprintf("%d:%d", left, top));
     topRuler->setStart(left);
     topRuler->update();
     leftRuler->setStart(top);
@@ -132,87 +158,87 @@ void MainWindow::createStatusBar() {
 
     labelCell = addFramedLabel(statusBar(), "Current cell:", "", 80);
     labelCellSize = addFramedLabel(statusBar(), "Cell size:", "10", 20);
-//    labelPos = createFramedLabel(statusBar(), "FramePos:", "0:0", fm.width(QString('9', 9)));
-    labelGeneration = addFramedLabel(statusBar(), "Generation:", "0", 50);
-    labelPopulation = addFramedLabel(statusBar(), "Population:", "0", 50);
 
-//    labelCell->setFixedWidth(fm.width(QString('9', 9)));
-//    labelCellSize->setFixedWidth(fm.width(QString('9', 2)));
-//    labelGeneration->setFixedWidth(fm.width(QString('9', 5)));
-//    labelPopulation->setFixedWidth(fm.width(QString('9', 4)));
+    labelGeneration = addFramedLabel(statusBar(), "Generation:", "0", 50);
+    QPushButton *button = new QPushButton(tr("Reset"), this);
+    connect(button, SIGNAL(clicked(bool)), lifeWidget, SLOT(resetCounter(bool)));
+    statusBar()->addWidget(button);
+
+    labelPopulation = addFramedLabel(statusBar(), "Population:", "0", 50);
 }
 
 void MainWindow::createActions() {
     newAct = new QAction(QIcon(":/images/document-new.png"), tr("&New"), this);
     newAct->setShortcuts(QKeySequence::New);
-//    newAct->setStatusTip(tr("Create a new life"));
+    newAct->setStatusTip(tr("Create a new life"));
     connect(newAct, SIGNAL(triggered()), this, SLOT(newFile()));
 
     openAct = new QAction(QIcon(":/images/document-open.png"), tr("&Open..."), this);
     openAct->setShortcuts(QKeySequence::Open);
-//    openAct->setStatusTip(tr("Open an existing life"));
+    openAct->setStatusTip(tr("Open an existing life"));
     connect(openAct, SIGNAL(triggered()), this, SLOT(open()));
 
     saveAct = new QAction(QIcon(":/images/document-save.png"), tr("&Save"), this);
     saveAct->setShortcuts(QKeySequence::Save);
-//    saveAct->setStatusTip(tr("Save the life to disk"));
+    saveAct->setStatusTip(tr("Save the life to disk"));
     connect(saveAct, SIGNAL(triggered()), this, SLOT(save()));
 
     saveAsAct = new QAction(tr("Save &As..."), this);
     saveAsAct->setShortcuts(QKeySequence::SaveAs);
-//    saveAsAct->setStatusTip(tr("Save the life under a new name"));
+    saveAsAct->setStatusTip(tr("Save the life under a new name"));
     connect(saveAsAct, SIGNAL(triggered()), this, SLOT(saveAs()));
 
     exitAct = new QAction(tr("E&xit"), this);
     exitAct->setShortcuts(QKeySequence::Quit);
-//    exitAct->setStatusTip(tr("Exit Life... Oops..."));
+    exitAct->setStatusTip(tr("Exit Life... Oops..."));
     connect(exitAct, SIGNAL(triggered()), this, SLOT(close()));
 
     cutAct = new QAction(QIcon(":/images/edit-cut.png"), tr("Cu&t"), this);
     cutAct->setShortcuts(QKeySequence::Cut);
-//    cutAct->setStatusTip(tr("Cut the current selection's contents to the "
-//                            "clipboard"));
-    //connect(cutAct, SIGNAL(triggered()), textEdit, SLOT(cut()));
+    cutAct->setStatusTip(tr("Cut the current selection's contents to the "
+                            "clipboard"));
+    // TODO: connect(cutAct, SIGNAL(triggered()), textEdit, SLOT(cut()));
 
     copyAct = new QAction(QIcon(":/images/edit-copy.png"), tr("&Copy"), this);
     copyAct->setShortcuts(QKeySequence::Copy);
-//    copyAct->setStatusTip(tr("Copy the current selection's contents to the "
-//                             "clipboard"));
-    //connect(copyAct, SIGNAL(triggered()), textEdit, SLOT(copy()));
+    copyAct->setStatusTip(tr("Copy the current selection's contents to the "
+                             "clipboard"));
+    // TODO: connect(copyAct, SIGNAL(triggered()), textEdit, SLOT(copy()));
 
     pasteAct = new QAction(QIcon(":/images/edit-paste.png"), tr("&Paste"), this);
     pasteAct->setShortcuts(QKeySequence::Paste);
-//    pasteAct->setStatusTip(tr("Paste the clipboard's contents into the current "
-//                              "selection"));
-    //connect(pasteAct, SIGNAL(triggered()), textEdit, SLOT(paste()));
+    pasteAct->setStatusTip(tr("Paste the clipboard's contents into the current "
+                              "selection"));
+    // TODO: connect(pasteAct, SIGNAL(triggered()), textEdit, SLOT(paste()));
 
     startAct = new QAction(QIcon(":/images/media-playback-start.png"), tr("&Play"), this);
     startAct->setShortcut(QKeySequence("Ctrl+P"));
-//    startAct->setStatusTip(tr("Start life cycle"));
+    startAct->setStatusTip(tr("Start life cycle"));
     connect(startAct, SIGNAL(triggered()), lifeWidget, SLOT(start()));
 
     stopAct = new QAction(QIcon(":/images/media-playback-stop.png"), tr("S&top"), this);
     stopAct->setShortcut(QKeySequence("Alt+T"));
-//    stopAct->setStatusTip(tr("Stop life cycle"));
+    stopAct->setStatusTip(tr("Stop life cycle"));
     connect(stopAct, SIGNAL(triggered()), lifeWidget, SLOT(stop()));
 
     stepAct = new QAction(QIcon(":/images/media-skip-forward.png"), tr("St&ep"), this);
     stepAct->setShortcut(QKeySequence("Alt+E"));
-//    stepAct->setStatusTip(tr("Make one life step"));
+    stepAct->setStatusTip(tr("Make one life step"));
     connect(stepAct, SIGNAL(triggered()), lifeWidget, SLOT(step()));
 
     aboutAct = new QAction(QIcon(":/images/help-about.png"), tr("&About"), this);
-//    aboutAct->setStatusTip(tr("Show the application's About box"));
+    aboutAct->setStatusTip(tr("Show the application's About box"));
     connect(aboutAct, SIGNAL(triggered()), this, SLOT(about()));
 
     aboutQtAct = new QAction(tr("About &Qt"), this);
-//    aboutQtAct->setStatusTip(tr("Show the Qt library's About box"));
+    aboutQtAct->setStatusTip(tr("Show the Qt library's About box"));
     connect(aboutQtAct, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
 
     moveAct = new QAction(QIcon(":/images/transform-move.png"), tr("Move the Life"), this);
     moveAct->setCheckable(true);
     moveAct->setChecked(false);
     connect(moveAct, SIGNAL(triggered(bool)), this, SLOT(btnMoveTrigger(bool)));
+
     editAct = new QAction(QIcon(":/images/draw-freehand.png"), tr("Edit the Life"), this);
     editAct->setCheckable(true);
     editAct->setChecked(true);
@@ -226,23 +252,11 @@ void MainWindow::createActions() {
 }
 
 void MainWindow::btnEditTrigger(bool t) {
-    if(t) {
-        lifeWidget->setMode(LifeWidget::M_NONE);
-        moveAct->setChecked(false);
-    } else {
-        lifeWidget->setMode(LifeWidget::M_MOVE);
-        moveAct->setChecked(true);
-    }
+    lifeWidget->setReadOnly(!t);
 }
 
 void MainWindow::btnMoveTrigger(bool t) {
-    if(t) {
-        lifeWidget->setMode(LifeWidget::M_MOVE);
-        editAct->setChecked(false);
-    } else {
-        lifeWidget->setMode(LifeWidget::M_NONE);
-        editAct->setChecked(true);
-    }
+    lifeWidget->setReadOnly(t);
 }
 
 void MainWindow::createMenus() {
@@ -287,15 +301,12 @@ void MainWindow::createToolBars() {
     toolBar->addAction(stopAct);
     toolBar->addAction(stepAct);
 
-    QSpinBox * delayTimeSpinner = new QSpinBox(this);
+    QSpinBox *delayTimeSpinner = new QSpinBox(this);
     delayTimeSpinner->setMinimum(0);
     delayTimeSpinner->setMaximum(5000);
     delayTimeSpinner->setValue(timeGap);
-    QAction *act = toolBar->addWidget(delayTimeSpinner);
-    connect(delayTimeSpinner, SIGNAL(valueChanged()), lifeWidget, SLOT(delayTimerChange()));
-
-    //    fileToolBar->setStyleSheet("QToolBar { border-bottom: 1px solid darkgrey; }");
-//    editToolBar->setStyleSheet("QToolBar { border-bottom: 1px solid darkgrey; }");
+    toolBar->addWidget(delayTimeSpinner);
+    connect(delayTimeSpinner, SIGNAL(valueChanged(int)), lifeWidget, SLOT(delayTimerChange(int)));
 }
 
 void MainWindow::newFile() {
@@ -303,8 +314,11 @@ void MainWindow::newFile() {
 }
 
 void MainWindow::open() {
-    QString fname = QFileDialog::getOpenFileName(this, tr("Open file"), "~/", tr("GIF files (*.gif)"));
-    lifeWidget->openGif(fname);
+    QString fname = QFileDialog::getOpenFileName(this, tr("Open file"), getLastPath(), tr("GIF files (*.gif)"));
+    if(fname.length() > 0) {
+        setLastPath(fname);
+        lifeWidget->openGif(fname);
+    }
 }
 
 bool MainWindow::save() {
@@ -339,13 +353,13 @@ void MainWindow::readSettings() {
     cellSize = settings.value("cellSize", 10).toInt();
     timeGap = settings.value("timeGap", 100).toInt();
 
-//    curSelect = Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
     curMoveReady = *new QCursor(*new QPixmap(":/cursors/openhand.gif"), 6, 3);
     curMove = *new QCursor(*new QPixmap(":/cursors/closedhand.gif"), 8, 2);
     curCopyReady = *new QCursor(*new QPixmap(":/cursors/openhand-plus.gif"), 6, 3);
     curCopy = *new QCursor(*new QPixmap(":/cursors/closedhand-plus.gif"), 8, 2);
     curBurn = *new QCursor(*new QPixmap(":/cursors/burn.gif"), 8, 8);
     curKill = *new QCursor(*new QPixmap(":/cursors/kill.gif"), 8, 8);
+    curSelect = Qt::CrossCursor;
 
     QPoint position = settings.value("pos", QPoint(200, 200)).toPoint();
     QSize size = settings.value("size", QSize(400, 400)).toSize();

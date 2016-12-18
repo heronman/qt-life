@@ -17,7 +17,6 @@ class QMenu;
 QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow {
-//class MainWindow : public QWidget {
     Q_OBJECT
 
 public:
@@ -43,13 +42,16 @@ private slots:
     void lifeChanged(int population, int generation);
     void btnMoveTrigger(bool);
     void btnEditTrigger(bool);
+    inline void readOnlySwitched(bool readOnly) {
+        editAct->setChecked(!readOnly);
+        moveAct->setChecked(readOnly);
+    }
 
     void newFile();
     void open();
     bool save();
     bool saveAs();
     void about();
-//    void documentWasModified();
 
 private:
     void createActions();
@@ -59,14 +61,7 @@ private:
     void createStatusBar();
     void createMenus();
     void createToolBars();
-    /*
-    bool maybeSave();
-    void loadFile(const QString &fileName);
-    bool saveFile(const QString &fileName);
-    void setCurrentFile(const QString &fileName);
-    QString strippedName(const QString &fullFileName);
-*/
-//    LifeWidget::Mode mode;
+
     LifeWidget *lifeWidget;
     QLabel* labelCell, *labelMouse, *labelPos;
     QLabel *labelCellSize, *labelGeneration, *labelPopulation;
