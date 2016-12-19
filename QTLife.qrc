@@ -25,5 +25,6 @@
         <file>cursors/kill.gif</file>
         <file>cursors/openhand.gif</file>
         <file>cursors/openhand-plus.gif</file>
+        <file>images/app-icon.png</file>
     </qresource>
 </RCC>

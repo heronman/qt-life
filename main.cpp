@@ -10,6 +10,7 @@ int main(int argc, char *argv[]) {
 
     MainWindow mainWin;
     mainWin.setMinimumSize(200, 100);
+    mainWin.setWindowIcon(QIcon(":/images/app-icon.png"));
     mainWin.show();
 
     return app.exec();
