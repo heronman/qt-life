@@ -3,47 +3,49 @@
 
 // internal utils
 
-void clearHash(QHash<int, QSet<int> *> * hash) {
-    for(QHash<int, QSet<int> *>::iterator it = hash->begin(); it != hash->end(); it++) {
+void clearMap(LifeMap* map) {
+    for(LifeMap::iterator it = map->begin(); it != map->end(); it++) {
         delete it.value();
     }
-    hash->clear();
+    map->clear();
 }
 
-bool test(QHash<int, QSet<int> *> *cells, long col, long row) {
-    QSet<int> *r = cells->value(row);
+bool test(LifeMap *cells, long col, long row) {
+    LifeRow* r = cells->value(row);
     if(r == NULL) return false;
     else return r->contains(col);
 }
 
-void burn(QHash<int, QSet<int> *> *cells, long col, long row) {
-    QSet<int> *r = cells->value(row);
+void burn(LifeMap *cells, long col, long row) {
+    LifeRow *r = cells->value(row);
     if(r == NULL) {
-        r = new QSet<int>();
+        r = new LifeRow();
         cells->insert(row, r);
     }
-    r->insert(col);
+    r->insert(col, true);
 }
 
-// end of internal utils
-
-void kill(QHash<int, QSet<int> *> *cells, long col, long row) {
-    QSet<int> * r = cells->value(row);
+void kill(LifeMap *cells, long col, long row) {
+    LifeRow* r = cells->value(row);
     if(r != NULL) {
         if(r->size() == 1) {
-            cells->remove(row);
-            delete r;
+            if(r->firstKey() == col) {
+                cells->remove(row);
+                delete r;
+            }
         } else {
             r->remove(col);
         }
     }
 }
 
+// end of internal utils
+
 Life::Life() : Life(LIFE_FORMULA_BURN, LIFE_FORMULA_SURVIVE_MIN, LIFE_FORMULA_SURVIVE_MAX) {}
 
 Life::Life(int burn, int surviveMin, int surviveMax) {
     setFormula(burn, surviveMin, surviveMax, false);
-    cells = new QHash<int, QSet<int> *>();
+    cells = new LifeMap();
     populationCached = -1L;
 }
 
@@ -92,11 +94,11 @@ void Life::kill(long col, long row) {
 void Life::clear(void) {
     lock.lockForWrite();
     populationCached = -1L;
-    clearHash(cells);
+    clearMap(cells);
     lock.unlock();
 }
 
-int neighborsCount(QHash<int, QSet<int>*> * cells, long col, long row) {
+int neighborsCount(LifeMap * cells, long col, long row) {
     int n = 0;
     for(long y  = -1;y < 2;y++) {
         for(long x = -1; x < 2; x++) {
@@ -111,13 +113,13 @@ int neighborsCount(QHash<int, QSet<int>*> * cells, long col, long row) {
 void Life::step(void) {
     lock.lockForWrite();
 
-    QHash<int, QSet<int>*>* tested = new QHash<int, QSet<int>*>();
-    QHash<int, QSet<int>*>* newMap = new QHash<int, QSet<int>*>();
+    LifeMap* tested = new LifeMap();
+    LifeMap* newMap = new LifeMap();
 
-    for(QHash<int, QSet<int> *>::iterator it = cells->begin();it != cells->end();it++) {
+    for(LifeMap::iterator it = cells->begin();it != cells->end();it++) {
         int cellY = it.key();
-        for(QSet<int>::iterator it2 = (*it)->begin(); it2 != (*it)->end();it2++) {
-            int cellX = *it2;
+        for(LifeRow::iterator it2 = (*it)->begin(); it2 != (*it)->end();it2++) {
+            int cellX = it2.key();
             if(!::test(tested, cellX, cellY)) {
                 ::burn(tested, cellX, cellY);
                 int neighbors = 0;
@@ -146,9 +148,9 @@ void Life::step(void) {
         }
     }
 
-    clearHash(tested);
+    clearMap(tested);
     delete tested;
-    clearHash(cells);
+    clearMap(cells);
     delete cells;
     cells = newMap;
     populationCached = -1L;
@@ -160,7 +162,7 @@ unsigned long Life::population(void) {
     lock.lockForRead();
     if(populationCached < 0L) {
         populationCached = 0L;
-        for(QHash<int, QSet<int>*>::iterator it = cells->begin(); it != cells->end(); it++) {
+        for(LifeMap::iterator it = cells->begin(); it != cells->end(); it++) {
             populationCached += it.value()->size();
         }
     }
@@ -177,23 +179,23 @@ void Life::unlock() {
     lock.unlock();
 }
 
-QHash<int, QSet<int>*>::const_iterator Life::begin() {
+LifeMap::const_iterator Life::begin() {
     return cells->begin();
 }
 
-QHash<int, QSet<int>*>::const_iterator Life::end() {
+LifeMap::const_iterator Life::end() {
     return cells->end();
 }
 
-QHash<int, QSet<int>*>* Life::copy(QHash<int, QSet<int>*>* ret) {
+LifeMap* Life::copy(LifeMap* ret) {
     if(ret == NULL)
-        ret = new QHash<int, QSet<int>*>();
-    ret->reserve(cells->size());
-    for(QHash<int, QSet<int>*>::iterator it = cells->begin(); it != cells->end(); it++) {
-        QSet<int> *row = new QSet<int>();
-        row->reserve(it.value()->size());
-        for(QSet<int>::iterator it2 = it.value()->begin(); it2 != it.value()->end(); it2++) {
-            row->insert(*it2);
+        ret = new LifeMap();
+//    ret->reserve(cells->size());
+    for(LifeMap::iterator it = cells->begin(); it != cells->end(); it++) {
+        LifeRow* row = new LifeRow();
+//        row->reserve(it.value()->size());
+        for(LifeRow::iterator it2 = it.value()->begin(); it2 != it.value()->end(); it2++) {
+            row->insert(it2.key(), true);
         }
         ret->insert(it.key(), row);
     }
@@ -202,9 +204,9 @@ QHash<int, QSet<int>*>* Life::copy(QHash<int, QSet<int>*>* ret) {
 
 void Life::iterate(LifeCellConsumer *li) {
     rdlock();
-    for(QHash<int, QSet<int> *>::const_iterator it = cells->begin(); it != cells->end(); it++) {
-        for(QSet<int>::const_iterator it2 = it.value()->begin(); it2 != it.value()->end(); it2++) {
-            li->run(*it2, it.key(), true);
+    for(LifeMap::const_iterator it = cells->begin(); it != cells->end(); it++) {
+        for(LifeRow::const_iterator it2 = it.value()->begin(); it2 != it.value()->end(); it2++) {
+            li->run(it2.key(), it.key(), true);
         }
     }
     unlock();
@@ -212,11 +214,13 @@ void Life::iterate(LifeCellConsumer *li) {
 
 void Life::iterate(LifeCellConsumer* li, long left, long top, long right, long bottom) {
     rdlock();
-    for(QHash<int, QSet<int> *>::const_iterator it = cells->begin(); it != cells->end(); it++) {
-        if(it.key() < top || it.key() > bottom) continue;
-        for(QSet<int>::const_iterator it2 = it.value()->begin(); it2 != it.value()->end(); it2++) {
-            if(*it2 >= left && *it2 <= right)
-                li->run(*it2, it.key(), true);
+    for(LifeMap::const_iterator it = cells->begin(); it != cells->end(); it++) {
+        int y = it.key();
+        if(y < top || y > bottom) continue;
+        for(LifeRow::const_iterator it2 = it.value()->begin(); it2 != it.value()->end(); it2++) {
+            int x = it2.key();
+            if(x >= left && x <= right)
+                li->run(x, y, true);
         }
     }
     unlock();

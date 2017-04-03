@@ -8,14 +8,16 @@
 
 #include <QReadWriteLock>
 #include <QPoint>
-#include <QHash>
-#include <QSet>
+#include <QMap>
 #include <vector>
 #include "LifeBase.h"
 
+typedef QMap<int, bool> LifeRow;
+typedef QMap<int, LifeRow*> LifeMap;
+
 class Life : public LifeBase {
 private:
-    QHash<int, QSet<int> *> *cells;
+    LifeMap *cells;
     QReadWriteLock lock;
     long populationCached;
 
@@ -40,9 +42,9 @@ public:
 
     void rdlock();
     void unlock();
-    QHash<int, QSet<int>*>::const_iterator begin();
-    QHash<int, QSet<int>*>::const_iterator end();
-    QHash<int, QSet<int>*>* copy(QHash<int, QSet<int>*>* ret = NULL);
+    LifeMap::const_iterator begin();
+    LifeMap::const_iterator end();
+    LifeMap* copy(LifeMap* ret = NULL);
 };
 
 #endif // LIFE_H
