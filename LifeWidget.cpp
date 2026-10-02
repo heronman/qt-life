@@ -214,16 +214,17 @@ void LifeWidget::leaveEvent(QEvent* event) {
 
 void LifeWidget::wheelEvent(QWheelEvent *event) {
     int newSize = cellSize;
-    if(event->delta() < 0) {
+
+    if(event->angleDelta().ry() < 0) {
         if(newSize > 1) newSize--;
-    } else if(event->delta() > 0) {
+    } else if(event->angleDelta().ry() > 0) {
         if(newSize < 30) newSize++;
     }
     if(newSize == cellSize) return;
 
     double q = (double)newSize / (double)cellSize;
-    left = round(((double)event->x() + (double)left) * q - (double)event->x());
-    top = round(((double)event->y() + (double)top) * q - (double)event->y());
+    left = round(((double)event->position().rx() + (double)left) * q - (double)event->position().rx());
+    top = round(((double)event->position().ry() + (double)top) * q - (double)event->position().ry());
     cellSize = newSize;
     update();
     emit lifeScaled(left, top, cellSize);

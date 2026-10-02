@@ -58,7 +58,7 @@ MainWindow::MainWindow() {
     leftRuler = new Ruler(Qt::Vertical, cellSize);
     topRuler = new Ruler(Qt::Horizontal, cellSize);
 
-    gl->setMargin(0);
+    gl->setContentsMargins(0, 0, 0, 0);
     gl->setSpacing(0);
     gl->addWidget(leftRuler, 1, 0);
     gl->addWidget(topRuler, 0, 1);
@@ -89,17 +89,15 @@ MainWindow::MainWindow() {
 }
 
 void MainWindow::lifeChanged(int population, int generation) {
-    labelGeneration->setText(QString().sprintf("%d", generation));
-    labelPopulation->setText(QString().sprintf("%d", population));
+    labelGeneration->setText(QString::asprintf("%d", generation));
+    labelPopulation->setText(QString::asprintf("%d", population));
 }
 
 void MainWindow::activeCellChanged(int col, int row) {
-    QString s;
-    labelCell->setText(s.sprintf("%d:%d", col, row));
+    labelCell->setText(QString::asprintf("%d:%d", col, row));
 }
 
 void MainWindow::lifeMoved(int left, int top) {
-    QString s;
     topRuler->setStart(left);
     topRuler->update();
     leftRuler->setStart(top);
@@ -107,8 +105,8 @@ void MainWindow::lifeMoved(int left, int top) {
 }
 
 void MainWindow::lifeScaled(int left, int top, int cellSize) {
-    //labelPos->setText(s.sprintf("%d:%d", left, top));
-    labelCellSize->setText(QString().sprintf("%d", cellSize));
+    //labelPos->setText(QString().asprintf("%d:%d", left, top));
+    labelCellSize->setText(QString().asprintf("%d", cellSize));
     topRuler->setUnitSize(cellSize);
     topRuler->setStart(left);
     topRuler->update();

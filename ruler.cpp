@@ -52,9 +52,9 @@ void Ruler::paintEvent(QPaintEvent *) {
             drawMark(&painter, i * unitSize + unitSize/2 - start, size);
 
         QString text;
-        text.sprintf("%d", i);
+        text.asprintf("%d", i);
         QString s2(text.size()+1, '9');
-        int pw = fm.width(s2);
+        int pw = fm.size(0, s2).width();
 
         int freq;
         if(orientation == Qt::Horizontal) {
