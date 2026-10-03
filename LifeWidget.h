@@ -83,7 +83,9 @@ public:
     void setReadOnly(bool readOnly);
     inline bool isReadOnly() { return readOnly; }
 
+    void openFile(QString fname);
     void openGif(QString fname);
+    void openRle(QString fname);
     int getCellX(int col);
     int getCellY(int row);
     int getCol(int x);

@@ -3,6 +3,7 @@
 #include "life.h"
 #include "LifeWidget.h"
 #include "mainwindow.h"
+#include <QMessageBox>
 
 LifeWidget::LifeWidget(int cellSize, long timeGap, QWidget *parent)
     : QWidget(parent)
@@ -297,6 +298,22 @@ void LifeWidget::setReadOnly(bool readOnly) {
     }
 }
 
+void LifeWidget::openFile(QString fname) {
+    QFile file(fname);
+    if(!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("Open file"),
+            tr("Cannot open file %1:\n%2").arg(fname, file.errorString()));
+        return;
+    }
+    const QByteArray head = file.read(6);
+    file.close();
+
+    if(head.startsWith("GIF87a") || head.startsWith("GIF89a"))
+        openGif(fname);
+    else
+        openRle(fname);
+}
+
 void LifeWidget::openGif(QString fname) {
     life->clear();
 
@@ -317,6 +334,82 @@ void LifeWidget::openGif(QString fname) {
     }
 
     delete movie;
+}
+
+void LifeWidget::openRle(QString fname) {
+    QFile file(fname);
+    if(!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, tr("Open file"),
+            tr("Cannot open file %1:\n%2").arg(fname, file.errorString()));
+        return;
+    }
+
+    // RLE: comment lines (#...), header line (x = W, y = H, ...), then body ending with '!'
+    QString body;
+    bool headerSeen = false;
+    QTextStream in(&file);
+    while(!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if(line.isEmpty() || line.startsWith('#'))
+            continue;
+        if(!headerSeen && line.startsWith('x')) {
+            headerSeen = true;
+            continue;
+        }
+        body += line;
+    }
+    file.close();
+
+    if(body.isEmpty()) {
+        QMessageBox::warning(this, tr("Open file"),
+            tr("Cannot read RLE pattern from %1: the file contains no pattern data.").arg(fname));
+        return;
+    }
+
+    life->clear();
+
+    int x = 0, y = 0;
+    int i = 0;
+    bool valid = true;
+    QChar bad;
+    while(i < body.length()) {
+        int count = 0;
+        bool hasCount = false;
+        while(i < body.length() && body[i].isDigit()) {
+            count = count * 10 + body[i].digitValue();
+            hasCount = true;
+            i++;
+        }
+        if(i >= body.length())
+            break;
+        if(!hasCount)
+            count = 1;
+
+        QChar ch = body[i++];
+        if(ch == '!')
+            break;
+        if(ch == 'b') {
+            x += count;
+        } else if(ch == '$') {
+            y += count;
+            x = 0;
+        } else if(ch == 'o') {
+            for(int j = 0; j < count; j++)
+                life->burn(x++, y);
+        } else if(!ch.isSpace()) {
+            valid = false;
+            bad = ch;
+            break;
+        }
+    }
+
+    if(!valid) {
+        life->clear();
+        QMessageBox::warning(this, tr("Open file"),
+            tr("Cannot read RLE pattern from %1: unexpected character '%2'.").arg(fname, QString(bad)));
+    }
+
+    update();
 }
 
 int LifeWidget::getCellX(int col) {

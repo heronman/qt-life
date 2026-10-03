@@ -171,7 +171,7 @@ void MainWindow::createActions() {
     newAct->setStatusTip(tr("Create a new life"));
     connect(newAct, SIGNAL(triggered()), this, SLOT(newFile()));
 
-    openAct = new QAction(QIcon(":/images/document-open.png"), tr("&Open..."), this);
+    openAct = new QAction(QIcon(":/images/document-open.png"), tr("&Open GIF or RLE..."), this);
     openAct->setShortcuts(QKeySequence::Open);
     openAct->setStatusTip(tr("Open an existing life"));
     connect(openAct, SIGNAL(triggered()), this, SLOT(open()));
@@ -312,10 +312,10 @@ void MainWindow::newFile() {
 }
 
 void MainWindow::open() {
-    QString fname = QFileDialog::getOpenFileName(this, tr("Open file"), getLastPath(), tr("GIF files (*.gif)"));
+    QString fname = QFileDialog::getOpenFileName(this, tr("Open file"), getLastPath(), tr("Life files (*.gif *.rle *.txt);;GIF files (*.gif);;RLE files (*.rle *.txt);;All files (*)"));
     if(fname.length() > 0) {
         setLastPath(fname);
-        lifeWidget->openGif(fname);
+        lifeWidget->openFile(fname);
     }
 }
 
