@@ -1,227 +1,192 @@
 #include "life.h"
-#include <QDateTime>
+#include <algorithm>
+#include <vector>
 
-// internal utils
+namespace {
 
-void clearMap(LifeMap* map) {
-    for(LifeMap::iterator it = map->begin(); it != map->end(); it++) {
-        delete it.value();
-    }
-    map->clear();
+inline uint64_t chunkKey(int32_t cx, int32_t cy) {
+    return ((uint64_t)(uint32_t)cx << 32) | (uint32_t)cy;
 }
 
-bool test(LifeMap *cells, long col, long row) {
-    LifeRow* r = cells->value(row);
-    if(r == NULL) return false;
-    else return r->contains(col);
+inline int32_t keyX(uint64_t k) { return (int32_t)(k >> 32); }
+inline int32_t keyY(uint64_t k) { return (int32_t)(uint32_t)k; }
+
+// floor(v / 64) and v mod 64 for negative v too
+inline int32_t chunkOf(long v) { return (int32_t)(v >> 6); }
+inline int inChunk(long v) { return (int)(v & 63); }
+
+bool isEmpty(const LifeChunk& c) {
+    uint64_t any = 0;
+    for(int i = 0; i < 64; i++) any |= c.rows[i];
+    return any == 0;
 }
 
-void burn(LifeMap *cells, long col, long row) {
-    LifeRow *r = cells->value(row);
-    if(r == NULL) {
-        r = new LifeRow();
-        cells->insert(row, r);
-    }
-    r->insert(col, true);
+const LifeChunk emptyChunk = {};
+
+// Bit-sliced sums for one row: horizontal neighbours of every cell
+struct RowSums {
+    uint64_t s0, s1; // L + C + R as a 2-bit number
+    uint64_t h0, h1; // L + R as a 2-bit number
+};
+
+inline RowSums rowSums(uint64_t west, uint64_t c, uint64_t east) {
+    uint64_t l = (c << 1) | (west >> 63);
+    uint64_t r = (c >> 1) | (east << 63);
+    RowSums s;
+    s.h0 = l ^ r;
+    s.h1 = l & r;
+    s.s0 = s.h0 ^ c;
+    s.s1 = s.h1 | (s.h0 & c);
+    return s;
 }
 
-void kill(LifeMap *cells, long col, long row) {
-    LifeRow* r = cells->value(row);
-    if(r != NULL) {
-        if(r->size() == 1) {
-            if(r->firstKey() == col) {
-                cells->remove(row);
-                delete r;
-            }
-        } else {
-            r->remove(col);
+// Computes the next generation of chunk (cx, cy)
+LifeChunk nextChunk(const std::unordered_map<uint64_t, LifeChunk>& map, int32_t cx, int32_t cy) {
+    const LifeChunk* n[3][3];
+    for(int dy = -1; dy <= 1; dy++) {
+        for(int dx = -1; dx <= 1; dx++) {
+            auto it = map.find(chunkKey(cx + dx, cy + dy));
+            n[dy + 1][dx + 1] = it == map.end() ? &emptyChunk : &it->second;
         }
     }
+
+    // rows -1..64 are stored at indices 0..65
+    RowSums rs[66];
+    rs[0]  = rowSums(n[0][0]->rows[63], n[0][1]->rows[63], n[0][2]->rows[63]);
+    rs[65] = rowSums(n[2][0]->rows[0],  n[2][1]->rows[0],  n[2][2]->rows[0]);
+    for(int y = 0; y < 64; y++)
+        rs[y + 1] = rowSums(n[1][0]->rows[y], n[1][1]->rows[y], n[1][2]->rows[y]);
+
+    LifeChunk res;
+    for(int y = 0; y < 64; y++) {
+        const RowSums& a = rs[y];
+        const RowSums& m = rs[y + 1];
+        const RowSums& b = rs[y + 2];
+
+        // a.s + b.s
+        uint64_t t0 = a.s0 ^ b.s0, c0 = a.s0 & b.s0;
+        uint64_t x1 = a.s1 ^ b.s1;
+        uint64_t t1 = x1 ^ c0;
+        uint64_t t2 = (a.s1 & b.s1) | (c0 & x1);
+        // + m.h
+        uint64_t u0 = t0 ^ m.h0, c1 = t0 & m.h0;
+        uint64_t x2 = t1 ^ m.h1;
+        uint64_t u1 = x2 ^ c1;
+        uint64_t c2 = (t1 & m.h1) | (c1 & x2);
+        uint64_t u2 = t2 | c2;
+
+        // count = u0 + 2*u1 + 4*u2; alive next if count == 3, or count == 2 and alive
+        res.rows[y] = u1 & ~u2 & (u0 | n[1][1]->rows[y]);
+    }
+    return res;
 }
 
-// end of internal utils
+} // namespace
 
-Life::Life() : Life(LIFE_FORMULA_BURN, LIFE_FORMULA_SURVIVE_MIN, LIFE_FORMULA_SURVIVE_MAX) {}
-
-Life::Life(int burn, int surviveMin, int surviveMax) {
-    setFormula(burn, surviveMin, surviveMax, false);
-    cells = new LifeMap();
-    populationCached = -1L;
-}
-
-std::vector<int> Life::getFormula() {
-    std::vector<int> r(3);
-    r.push_back(fBurn);
-    r.push_back(fSurviveMin);
-    r.push_back(fSurviveMax);
-    return r;
-}
-
-void Life::setFormula(int burn, int surviveMin, int surviveMax, bool doLock) {
-    if(doLock) lock.lockForWrite();
-    fBurn = burn;
-    fSurviveMin = surviveMin;
-    fSurviveMax = surviveMax;
-    if(doLock) lock.unlock();
-}
-
-void Life::setFormula(int burn, int surviveMin, int surviveMax) {
-    setFormula(burn, surviveMin, surviveMax, true);
-}
+Life::Life() : populationCached(-1L) {}
 
 bool Life::test(long col, long row) {
-    bool ret = false;
-    lock.lockForRead();
-    ret = ::test(cells, col, row);
-    lock.unlock();
-    return ret;
+    auto it = chunks.find(chunkKey(chunkOf(col), chunkOf(row)));
+    if(it == chunks.end()) return false;
+    return (it->second.rows[inChunk(row)] >> inChunk(col)) & 1;
 }
 
 void Life::burn(long col, long row) {
-    lock.lockForWrite();
     populationCached = -1L;
-    ::burn(cells, col, row);
-    lock.unlock();
+    auto it = chunks.find(chunkKey(chunkOf(col), chunkOf(row)));
+    if(it == chunks.end())
+        it = chunks.emplace(chunkKey(chunkOf(col), chunkOf(row)), emptyChunk).first;
+    it->second.rows[inChunk(row)] |= (uint64_t)1 << inChunk(col);
 }
 
 void Life::kill(long col, long row) {
-    lock.lockForWrite();
+    auto it = chunks.find(chunkKey(chunkOf(col), chunkOf(row)));
+    if(it == chunks.end()) return;
     populationCached = -1L;
-    ::kill(cells, col, row);
-    lock.unlock();
+    it->second.rows[inChunk(row)] &= ~((uint64_t)1 << inChunk(col));
+    if(isEmpty(it->second)) chunks.erase(it);
 }
 
-void Life::clear(void) {
-    lock.lockForWrite();
+void Life::clear() {
     populationCached = -1L;
-    clearMap(cells);
-    lock.unlock();
+    chunks.clear();
 }
 
-int neighborsCount(LifeMap * cells, long col, long row) {
-    int n = 0;
-    for(long y  = -1;y < 2;y++) {
-        for(long x = -1; x < 2; x++) {
-            if((x != 0 || y != 0)
-                    && test(cells, x + col, y + row))
-                n++;
+void Life::step() {
+    // candidates: live chunks plus the neighbours that their edge cells can spill into
+    std::vector<uint64_t> cand;
+    cand.reserve(chunks.size() * 2);
+    for(const auto& kv : chunks) {
+        const LifeChunk& c = kv.second;
+        int32_t cx = keyX(kv.first), cy = keyY(kv.first);
+
+        uint64_t left = 0, right = 0;
+        for(int i = 0; i < 64; i++) {
+            left |= c.rows[i] & 1;
+            right |= c.rows[i] >> 63;
         }
+        bool top = c.rows[0] != 0, bottom = c.rows[63] != 0;
+        bool l = left, r = right;
+        bool any = top || bottom || l || r;
+
+        cand.push_back(kv.first);
+        if(!any) continue;
+        // a pattern at an edge reaches the adjacent chunk; at a corner, the diagonal one
+        if(top)    cand.push_back(chunkKey(cx, cy - 1));
+        if(bottom) cand.push_back(chunkKey(cx, cy + 1));
+        if(l)      cand.push_back(chunkKey(cx - 1, cy));
+        if(r)      cand.push_back(chunkKey(cx + 1, cy));
+        if((c.rows[0] & 1) )               cand.push_back(chunkKey(cx - 1, cy - 1));
+        if((c.rows[0] >> 63) )             cand.push_back(chunkKey(cx + 1, cy - 1));
+        if((c.rows[63] & 1) )              cand.push_back(chunkKey(cx - 1, cy + 1));
+        if((c.rows[63] >> 63) )            cand.push_back(chunkKey(cx + 1, cy + 1));
     }
-    return n;
-}
+    std::sort(cand.begin(), cand.end());
+    cand.erase(std::unique(cand.begin(), cand.end()), cand.end());
 
-void Life::step(void) {
-    lock.lockForWrite();
-
-    LifeMap* tested = new LifeMap();
-    LifeMap* newMap = new LifeMap();
-
-    for(LifeMap::iterator it = cells->begin();it != cells->end();it++) {
-        int cellY = it.key();
-        for(LifeRow::iterator it2 = (*it)->begin(); it2 != (*it)->end();it2++) {
-            int cellX = it2.key();
-            if(!::test(tested, cellX, cellY)) {
-                ::burn(tested, cellX, cellY);
-                int neighbors = 0;
-                for(int _y  = -1;_y < 2;_y++) {
-                    for(int _x = -1; _x < 2; _x++) {
-                        if(_x == 0 && _y == 0) continue;
-                        int x = cellX + _x,
-                            y = cellY + _y;
-                        if(::test(cells, x, y)) {
-                            neighbors++;
-                        } else if(!::test(tested, x, y)) {
-                            ::burn(tested, x, y);
-                            int n = neighborsCount(cells, x, y);
-                            if(n == fBurn)
-                                ::burn(newMap, x, y);
-                        }
-                    }
-                }
-                bool alive = ::test(cells, cellX, cellY);
-                if(alive && neighbors >= fSurviveMin && neighbors <= fSurviveMax) {
-                    ::burn(newMap, cellX, cellY);
-                } else if(!alive && neighbors == fBurn) {
-                    ::burn(newMap, cellX, cellY);
-                }
-            }
-        }
+    ChunkMap next;
+    next.reserve(cand.size());
+    for(uint64_t k : cand) {
+        LifeChunk c = nextChunk(chunks, keyX(k), keyY(k));
+        if(!isEmpty(c)) next.emplace(k, c);
     }
-
-    clearMap(tested);
-    delete tested;
-    clearMap(cells);
-    delete cells;
-    cells = newMap;
+    chunks.swap(next);
     populationCached = -1L;
-
-    lock.unlock();
 }
 
-unsigned long Life::population(void) {
-    lock.lockForRead();
+unsigned long Life::population() {
     if(populationCached < 0L) {
-        populationCached = 0L;
-        for(LifeMap::iterator it = cells->begin(); it != cells->end(); it++) {
-            populationCached += it.value()->size();
-        }
+        long total = 0;
+        for(const auto& kv : chunks)
+            for(int i = 0; i < 64; i++)
+                total += __builtin_popcountll(kv.second.rows[i]);
+        populationCached = total;
     }
-    lock.unlock();
-
     return populationCached;
 }
 
-void Life::rdlock() {
-    lock.lockForRead();
-}
-
-void Life::unlock() {
-    lock.unlock();
-}
-
-LifeMap::const_iterator Life::begin() {
-    return cells->begin();
-}
-
-LifeMap::const_iterator Life::end() {
-    return cells->end();
-}
-
-LifeMap* Life::copy(LifeMap* ret) {
-    if(ret == NULL)
-        ret = new LifeMap();
-//    ret->reserve(cells->size());
-    for(LifeMap::iterator it = cells->begin(); it != cells->end(); it++) {
-        LifeRow* row = new LifeRow();
-//        row->reserve(it.value()->size());
-        for(LifeRow::iterator it2 = it.value()->begin(); it2 != it.value()->end(); it2++) {
-            row->insert(it2.key(), true);
-        }
-        ret->insert(it.key(), row);
-    }
-    return ret;
-}
-
 void Life::iterate(LifeCellConsumer *li) {
-    rdlock();
-    for(LifeMap::const_iterator it = cells->begin(); it != cells->end(); it++) {
-        for(LifeRow::const_iterator it2 = it.value()->begin(); it2 != it.value()->end(); it2++) {
-            li->run(it2.key(), it.key(), true);
+    for(const auto& kv : chunks) {
+        long ox = (long)keyX(kv.first) * 64, oy = (long)keyY(kv.first) * 64;
+        for(int y = 0; y < 64; y++) {
+            for(uint64_t bits = kv.second.rows[y]; bits; bits &= bits - 1)
+                li->run(ox + __builtin_ctzll(bits), oy + y, true);
         }
     }
-    unlock();
 }
 
 void Life::iterate(LifeCellConsumer* li, long left, long top, long right, long bottom) {
-    rdlock();
-    for(LifeMap::const_iterator it = cells->begin(); it != cells->end(); it++) {
-        int y = it.key();
-        if(y < top || y > bottom) continue;
-        for(LifeRow::const_iterator it2 = it.value()->begin(); it2 != it.value()->end(); it2++) {
-            int x = it2.key();
-            if(x >= left && x <= right)
-                li->run(x, y, true);
+    for(const auto& kv : chunks) {
+        long ox = (long)keyX(kv.first) * 64, oy = (long)keyY(kv.first) * 64;
+        if(ox > right || ox + 63 < left || oy > bottom || oy + 63 < top) continue;
+        for(int y = 0; y < 64; y++) {
+            long yy = oy + y;
+            if(yy < top || yy > bottom) continue;
+            for(uint64_t bits = kv.second.rows[y]; bits; bits &= bits - 1) {
+                long xx = ox + __builtin_ctzll(bits);
+                if(xx >= left && xx <= right)
+                    li->run(xx, yy, true);
+            }
         }
     }
-    unlock();
 }

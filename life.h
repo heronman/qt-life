@@ -1,34 +1,25 @@
 #ifndef LIFE_H
 #define LIFE_H
 
-#define LIFE_CAP_DELTA 65536
-#define LIFE_FORMULA_BURN 3
-#define LIFE_FORMULA_SURVIVE_MIN 2
-#define LIFE_FORMULA_SURVIVE_MAX 3
-
-#include <QReadWriteLock>
-#include <QPoint>
-#include <QMap>
-#include <vector>
+#include <stdint.h>
+#include <unordered_map>
 #include "LifeBase.h"
 
-typedef QMap<int, bool> LifeRow;
-typedef QMap<int, LifeRow*> LifeMap;
+// Infinite Conway's Life (B3/S23) stored as sparse 64x64-bit chunks.
+// A step processes 64 cells at once with bit-sliced neighbour counting.
+
+struct LifeChunk {
+    uint64_t rows[64]; // bit x of rows[y] is the cell (x, y) inside the chunk
+};
 
 class Life : public LifeBase {
 private:
-    LifeMap *cells;
-    QReadWriteLock lock;
+    typedef std::unordered_map<uint64_t, LifeChunk> ChunkMap;
+    ChunkMap chunks;
     long populationCached;
-
-    void setFormula(int burn, int surviveMin, int surviveMax, bool lock);
 
 public:
     Life();
-    Life(int burn, int surviveMin, int surviveMax);
-
-    std::vector<int> getFormula(void);
-    void setFormula(int burn, int surviveMin, int surviveMax);
 
     bool test(long col, long row);
     void burn(long col, long row);
@@ -39,12 +30,6 @@ public:
 
     void iterate(LifeCellConsumer *it);
     void iterate(LifeCellConsumer* it, long l, long t, long r, long b);
-
-    void rdlock();
-    void unlock();
-    LifeMap::const_iterator begin();
-    LifeMap::const_iterator end();
-    LifeMap* copy(LifeMap* ret = NULL);
 };
 
 #endif // LIFE_H
