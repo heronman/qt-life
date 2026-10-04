@@ -51,8 +51,7 @@ void Ruler::paintEvent(QPaintEvent *) {
         if(unitSize > 1 || i % 2 == 0)
             drawMark(&painter, i * unitSize + unitSize/2 - start, size);
 
-        QString text;
-        text.asprintf("%d", i);
+        QString text = QString("%1").arg(i);
         QString s2(text.size()+1, '9');
         int pw = fm.size(0, s2).width();
 

@@ -214,13 +214,36 @@ void LifeWidget::leaveEvent(QEvent* event) {
 }
 
 void LifeWidget::wheelEvent(QWheelEvent *event) {
+    static int wheelMoveAcc = 0;
+
+    int minSize = 1, maxSize = 30;
+    double sizeDelta = maxSize - minSize;
+    int t = 1, T = 10;
+    double a = (t - T) / sizeDelta, b = T - a;
+    int threshold = round(a * cellSize + b);
+
+    if (event->angleDelta().ry() == 0) return;
     int newSize = cellSize;
 
-    if(event->angleDelta().ry() < 0) {
-        if(newSize > 1) newSize--;
-    } else if(event->angleDelta().ry() > 0) {
-        if(newSize < 30) newSize++;
+    if (event->angleDelta().ry() < 0)
+        threshold *= -1;
+
+    if (threshold < 0) {
+        if (wheelMoveAcc > 0) wheelMoveAcc = -1;
+        else wheelMoveAcc--;
+        if (wheelMoveAcc <= threshold && newSize > 1) {
+            newSize--;
+            wheelMoveAcc = 0;
+        }
+    } else {
+        if (wheelMoveAcc < 0) wheelMoveAcc = 1;
+        else wheelMoveAcc++;
+        if (wheelMoveAcc >= threshold && newSize < 30) {
+            newSize++;
+            wheelMoveAcc = 0;
+        }
     }
+
     if(newSize == cellSize) return;
 
     double q = (double)newSize / (double)cellSize;

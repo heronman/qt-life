@@ -89,12 +89,12 @@ MainWindow::MainWindow() {
 }
 
 void MainWindow::lifeChanged(int population, int generation) {
-    labelGeneration->setText(QString::asprintf("%d", generation));
-    labelPopulation->setText(QString::asprintf("%d", population));
+    labelGeneration->setText(QString("%1").arg(generation));
+    labelPopulation->setText(QString("%1").arg(population));
 }
 
 void MainWindow::activeCellChanged(int col, int row) {
-    labelCell->setText(QString::asprintf("%d:%d", col, row));
+    labelCell->setText(QString("%1:%2").arg(col).arg(row));
 }
 
 void MainWindow::lifeMoved(int left, int top) {
@@ -105,8 +105,8 @@ void MainWindow::lifeMoved(int left, int top) {
 }
 
 void MainWindow::lifeScaled(int left, int top, int cellSize) {
-    //labelPos->setText(QString().asprintf("%d:%d", left, top));
-    labelCellSize->setText(QString().asprintf("%d", cellSize));
+    //labelPos->setText(QString("%1:%2).arg(left).arg(top));
+    labelCellSize->setText(QString("%1").arg(cellSize));
     topRuler->setUnitSize(cellSize);
     topRuler->setStart(left);
     topRuler->update();

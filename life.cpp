@@ -29,14 +29,14 @@ struct RowSums {
     uint64_t h0, h1; // L + R as a 2-bit number
 };
 
-inline RowSums rowSums(uint64_t west, uint64_t c, uint64_t east) {
-    uint64_t l = (c << 1) | (west >> 63);
-    uint64_t r = (c >> 1) | (east << 63);
+inline RowSums rowSums(uint64_t west, uint64_t center, uint64_t east) {
+    uint64_t left = (center << 1) | (west >> 63);
+    uint64_t right = (center >> 1) | (east << 63);
     RowSums s;
-    s.h0 = l ^ r;
-    s.h1 = l & r;
-    s.s0 = s.h0 ^ c;
-    s.s1 = s.h1 | (s.h0 & c);
+    s.h0 = left ^ right;
+    s.h1 = left & right;
+    s.s0 = s.h0 ^ center;
+    s.s1 = s.h1 | (s.h0 & center);
     return s;
 }
 
@@ -74,7 +74,6 @@ LifeChunk nextChunk(const std::unordered_map<uint64_t, LifeChunk>& map, int32_t 
         uint64_t u1 = x2 ^ c1;
         uint64_t c2 = (t1 & m.h1) | (c1 & x2);
         uint64_t u2 = t2 | c2;
-
         // count = u0 + 2*u1 + 4*u2; alive next if count == 3, or count == 2 and alive
         res.rows[y] = u1 & ~u2 & (u0 | n[1][1]->rows[y]);
     }
